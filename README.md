@@ -1,5 +1,4 @@
-#PS_AD_logons
-powershell script that shows all user logons in ActiveDirectory domain (wss.local in the script)
+Powershell script that shows all user logons in ActiveDirectory domain (wss.local in the script)
 in selected time range and selected date range
 
 
