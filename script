@@ -1,0 +1,89 @@
+# script vyvodit iz event log zapisi o vhode polzovateley v zadannom vremennom promezhutke,
+#  dlia zadannogo diapazona dat
+#  naprimer, s 14-00-00.000  do 17-59-59.999 kazhdyy denj s 01 po 16 oktyabrya 2022 goda
+
+
+# Diapazon dat: (proverku sootvetstviya ne provozhu, zadavatj akkuratno)
+## nachalo (vkluchiteljno):
+$start_date_year = 2022   # e.g. 2022
+$start_date_month = 10    # from 1 to 12, e.g. 10
+$start_date_day = 1       # from 1 to 31, e.g. 1
+
+## konets (vkluchiteljno):
+$stop_date_year = 2022    # e.g. 2022
+$stop_date_month = 10    # from 1 to 12, e.g. 10
+$stop_date_day = 16      # from 1 to 31, e.g. 16
+
+# Promezhutok vremeni dlia vyvoda: (proverku sootvetstviya ne provozhu, zadavatj akkuratno)
+## nachalo (vkluchiteljno):
+$start_hour = 14     # from 0 to 23    
+$start_minute = 0   # from 0 to 59
+$start_second = 0   # from 0 to 59
+$start_ms = 0       # from 0 to 999
+
+## konets (vkluchiteljno):
+$stop_hour = 17     # from 0 to 23    
+$stop_minute = 59   # from 0 to 59
+$stop_second = 59   # from 0 to 59
+$stop_ms = 999      # from 0 to 999
+
+#==================================================================
+
+
+
+$start_date =  get-date -year $start_date_year -month $start_date_month -day $start_date_day -hour 12 -minute 0 -second 0 -millisecond 000
+$stop_date =  get-date -year $stop_date_year -month $stop_date_month -day $stop_date_day -hour 12 -minute 0 -second 0 -millisecond 000
+
+$amount_of_days = ($stop_date - $start_date).Days + 1
+#echo $amount_of_days
+
+
+$ErrorActionPreference="stop" # chtoby try-catch srabatyval
+
+$all_users = @()
+$all_users = ( get-aduser -filter * | select-object SAMAccountName )
+foreach ($user_raw_1 in $all_users) {
+  try {
+    $user_raw_2 = Out-String -InputObject $user_raw_1
+    $user = $user_raw_2 | convert-string -example "
+    SAMAccountName
+    --------------
+    QQQ =QQQ"
+    echo ""
+    echo ""
+    echo "SAMAccountName = $user    logons:"
+    echo ""
+    $xpath = ''
+    $xpath = '*[System[EventID=4624]] [EventData[Data[@Name="TargetUserName"]="'+$user+'"]] [EventData[Data[@Name="TargetDomainName"]="wss.local"]]'
+    #echo $xpath
+    $text = @()  #$text gets overwritten for each user
+    for ($i_days = 0; $i_days -lt $amount_of_days; $i_days++) {
+      $current_date = $start_date.AddDays($i_days)
+      $c_year = $current_date.Year
+      $c_month = $current_date.Month
+      $c_day= $current_date.Day
+      $start_time =  get-date -year $c_year -month $c_month -day $c_day -hour $start_hour -minute $start_minute -second $start_second -millisecond $start_ms
+      $end_time =  get-date -year $c_year -month $c_month -day $c_day -hour $stop_hour -minute $stop_minute -second $stop_second -millisecond $stop_ms
+      #echo $start_time $end_time
+      $text += get-winevent -logname 'security' <#-maxevents 80#> -filterXpath $xpath  | where-object { $_.TimeCreated -ge $start_time -and  $_.TimeCreated -le $end_time <#-and $_.id -eq 4624 #> }
+      <# maxevents vse ravno zhelatelno ogranichivatj #>
+    }
+    $text_SortByDate = ($text | Sort-Object TimeCreated)
+    echo $text_SortByDate
+    <#
+    foreach ($record in $text_SortByDate) {echo '=================='
+    echo $record.message
+    echo '=================='
+    }
+    #>
+  }
+  catch [System.Exception] {
+  #echo $error
+  echo "an error occured - most probably, no logons were found"
+  }
+}
+
+
+
+
+
